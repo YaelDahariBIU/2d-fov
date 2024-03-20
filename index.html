@@ -331,8 +331,8 @@
           * another edge of the polygon with the same angle point as one of its
           * end point would be deemed intersecting and the resulting point would
           * become the hit point. This wouldn't happen if edges can exist on
-          * their own, independant of a polygon. With the below block, even for
-          * such an independant, parallel edge, the result would contain a
+          * their own, independent of a polygon. With the below block, even for
+          * such an independent, parallel edge, the result would contain a
           * parameter t and an intersection point that can be checked by the
           * caller.
           */
@@ -420,7 +420,7 @@
          vec2.add(auxiliaries[0], sector.centre, auxiliaries[0]);
          vec2.add(auxiliaries[1], sector.centre, auxiliaries[1]);
          var projAxis = perp2d(ray);
-         // special case polygons with a single edge i.e. an independant wall
+         // special case polygons with a single edge i.e. an independent wall
          if ((nextEdge === undefined) || (nextEdge === prevEdge)) {
              // lineVec should originate from the added endpoint going to the
              // other end; if added point is second in edge, flip edge's vector
