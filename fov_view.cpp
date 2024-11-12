@@ -2,6 +2,8 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/gtx/norm.hpp>
 #include <glm/gtx/rotate_vector.hpp>
+#include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 #include <cmath>
 #include <set>
 #include <vector>
@@ -21,10 +23,14 @@ const float epsilon_sq = epsilon * epsilon;
 const float halfAuxRayTilt = 8.72664625995e-3f; // half degree in radians
 const float halfAuxRayTiltCos = cos(halfAuxRayTilt); // 0.999961923064
 const float halfAuxRayTiltSin = sin(halfAuxRayTilt); // 8.72653549837e-3
-const std::string wallColour = "105, 105, 105";
-const std::string observerColour = "255, 128, 128";
-const std::string targetColour = "128, 128, 255";
-const std::string targetSeenColour = "255, 0, 255";
+glm::vec3 wallColour(0.5f, 0.5f, 0.5f);  // Example wall color
+glm::vec3 observerColour(0.0f, 1.0f, 0.0f);  // Example observer color
+glm::vec3 targetColour(1.0f, 0.0f, 0.0f);  // Example target color
+glm::vec3 targetSeenColour(1.5f, 0.0f, 1.5f);  // Example target color
+// const std::string wallColour = "105, 105, 105";
+// const std::string observerColour = "255, 128, 128";
+// const std::string targetColour = "128, 128, 255";
+// const std::string targetSeenColour = "255, 0, 255";
 
 bool isZero(const glm::vec2& v) {
     return (fabs(v.x) + fabs(v.y)) <= epsilon;
@@ -250,13 +256,6 @@ struct Edge {
 
 
 
-struct Polygon {
-    std::vector<Edge> edges; // List of edges that make up the polygon
-
-    // Constructor to initialize with a vector of edges
-    Polygon(const std::vector<Edge>& edgeList) : edges(edgeList) {}
-};
-
 
 struct Sector {
     glm::vec2 centre;                // Center of the sector
@@ -372,14 +371,47 @@ std::vector<glm::vec2> makeRays(const Sector& sector, const std::vector<glm::vec
     return rays;
 }
 
-struct Observer {
-    glm::vec2 loc;  // Position of the observer
-    glm::vec2 dir;  // Direction of the observer
+struct Polygon {
+    std::vector<glm::vec2> coords; // List of the polygon's vertices (in order) - might not be needed
+    std::vector<Edge> edges; // List of edges that make up the polygon
+    glm::vec3 colour;
+    int stroke;
+    bool fill;
 };
 
-void updateSector(Sector& sector, const Observer& observer) {
-    sector.centre = observer.loc;
-    sector.midDir = observer.dir;
+struct Observer {
+    glm::vec2 loc;
+    glm::vec2 dir;
+    glm::vec3 colour;
+    Sector sector;
+    FieldOfView fov;
+    
+};
+
+struct FieldOfView {
+    std::set<glm::vec2> anglePtSet;
+    std::vector<glm::vec2> anglePoints;
+    std::vector<Edge> blockingEdges;
+    std::vector<glm::vec2> rays;
+    std::vector<glm::vec2> hitPoints;
+    std::vector<glm::vec2> ctrlPoints;
+};
+
+struct Target {
+    glm::vec2 loc;
+    glm::vec2 dir;
+    glm::vec3 colour;
+};
+
+struct Scene {
+    std::vector<Polygon> polygons;
+    Observer observer;
+    Target target;
+};
+
+void updateSector(Sector& sector, const Scene& scene) {
+    sector.centre = scene.observer.loc;
+    sector.midDir = scene.observer.dir;
     
     auto fovDirs = rotateDir(sector.midDir, halfFoVCos, halfFoVSin);
     fovDirs.first *= sector.radius;
@@ -491,7 +523,7 @@ RayShootingResult shootRays(const std::vector<glm::vec2>& rays, const std::vecto
 
 // end of part 5 (line 818)
 
-bool isSubjectVisible(const std::vector<Edge>& blockingEdges, const Sector& sector, const Observer& observer) {
+bool isSubjectVisible(const std::vector<Edge>& blockingEdges, const Sector& sector, const Scene& scene) {
 
     // Patch I've added to the original code
     std::vector<glm::vec2> fovEdges;
@@ -501,8 +533,8 @@ bool isSubjectVisible(const std::vector<Edge>& blockingEdges, const Sector& sect
     // End of patch
 
     // Check if the target is within the sector using the isPointInSector function
-    if (isPointInSector(observer.loc, sector.centre, sector.midDir, sector.radius_2, fovEdges) == PointInSector::Within) {
-        glm::vec2 rayVec = observer.loc - sector.centre;
+    if (isPointInSector(scene.target.loc, sector.centre, sector.midDir, sector.radius_2, fovEdges) == PointInSector::Within) {
+        glm::vec2 rayVec = scene.target.loc - sector.centre;
         
         // Loop through blocking edges to check for intersections
         for (const auto& edge : blockingEdges) {
@@ -528,12 +560,13 @@ bool isSubjectVisible(const std::vector<Edge>& blockingEdges, const Sector& sect
 
 // end of part 6 (line 833)
 
-void update(Sector& sector, Observer& observer) {
+void update(Scene& scene) {
     // Update the sector
-    updateSector(sector, observer);
+    auto& sector = scene.observer.sector;
+    updateSector(sector, scene);
 
     // Get field of view (fov) and angle point set
-    auto& fov = observer.fov;
+    auto& fov = scene.observer.fov;
     auto& anglePtSet = fov.anglePtSet;
     anglePtSet.clear();
     
@@ -548,10 +581,15 @@ void update(Sector& sector, Observer& observer) {
 
     // Prepare angle points for sorting (including sector edge endpoints)
     std::vector<glm::vec2> anglePoints = {
-        sector.fovEdges[0].end,
-        anglePtSet.begin(), anglePtSet.end(),
-        sector.fovEdges[1].end
+        sector.fovEdges[0].end
     };
+
+    for (const auto& point : anglePtSet) {
+        anglePoints.push_back(point);
+    }
+
+    anglePoints.push_back(sector.fovEdges[1].end);
+
 
     // Sort the angle points in counter-clockwise order
     sortAngularPoints(anglePoints, sector.centre);
@@ -559,8 +597,15 @@ void update(Sector& sector, Observer& observer) {
     // Create rays from the angle points
     std::vector<glm::vec2> rays = makeRays(sector, anglePoints);
 
+    // Patch I've added to the original code
+    std::vector<glm::vec2> blockEdges;
+    for (const auto& blockEdge : blockingEdges) {
+        blockEdges.push_back(blockEdge.vector);
+    }
+    // End of patch
+
     // Shoot rays and collect the result
-    RayShootingResult result = shootRays(rays, blockingEdges, sector.centre, sector.radius);
+    RayShootingResult result = shootRays(rays, blockEdges, sector.centre, sector.radius);
 
     // Store the result in the fov
     fov.anglePoints = anglePoints;
@@ -569,5 +614,7 @@ void update(Sector& sector, Observer& observer) {
     fov.ctrlPoints = result.ctrlPoints;
 
     // Determine if the target is visible based on blocking edges
-    observer.colour = isSubjectVisible(blockingEdges, sector, observer) ? targetSeenColour : targetColour;
+    scene.target.colour = isSubjectVisible(blockingEdges, sector, scene) ? targetSeenColour : targetColour;
 }
+
+// end of part 7 (line 866)
