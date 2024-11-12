@@ -73,10 +73,11 @@
  var canvas = document.getElementById("canvas2d");
  var ctx, scene;
  var FoV = 1.25663706143;  // 72° field of vision in radians
+//  var FoV = 3.14159265 // 180° field of vision in radians
  var halfFoV = FoV / 2;
  var halfFoVCos = Math.cos(halfFoV); // 0.809016994375
  var halfFoVSin = Math.sin(halfFoV); // 0.587785252292
- var visionRadius = 240;
+ var visionRadius = 500;
  var personRadius = 5;
  var wallColour = "105, 105, 105";
  var observerColour = "255, 128, 128";
