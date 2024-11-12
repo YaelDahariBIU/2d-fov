@@ -7,6 +7,7 @@
 #include <vector>
 #include <iostream>
 #include <algorithm>
+#include <string>
 
 
 const float FoV = 1.25663706143f; // 72° field of vision in radians
@@ -20,6 +21,10 @@ const float epsilon_sq = epsilon * epsilon;
 const float halfAuxRayTilt = 8.72664625995e-3f; // half degree in radians
 const float halfAuxRayTiltCos = cos(halfAuxRayTilt); // 0.999961923064
 const float halfAuxRayTiltSin = sin(halfAuxRayTilt); // 8.72653549837e-3
+const std::string wallColour = "105, 105, 105";
+const std::string observerColour = "255, 128, 128";
+const std::string targetColour = "128, 128, 255";
+const std::string targetSeenColour = "255, 0, 255";
 
 bool isZero(const glm::vec2& v) {
     return (fabs(v.x) + fabs(v.y)) <= epsilon;
@@ -395,7 +400,6 @@ void updateSector(Sector& sector, const Observer& observer) {
 // end of part 3 (line 664)
 
 // Sorting the points in a counter-clockwise direction:
-
 void sortAngularPoints(std::vector<glm::vec2>& anglePoints, const glm::vec2& centre) {
     std::sort(anglePoints.begin(), anglePoints.end(), [&centre](const glm::vec2& a, const glm::vec2& b) {
         glm::vec2 aV = a - centre;
@@ -523,3 +527,47 @@ bool isSubjectVisible(const std::vector<Edge>& blockingEdges, const Sector& sect
 }
 
 // end of part 6 (line 833)
+
+void update(Sector& sector, Observer& observer) {
+    // Update the sector
+    updateSector(sector, observer);
+
+    // Get field of view (fov) and angle point set
+    auto& fov = observer.fov;
+    auto& anglePtSet = fov.anglePtSet;
+    anglePtSet.clear();
+    
+    // Get the blocking edges for the field of view (fov)
+    auto& blockingEdges = fov.blockingEdges;
+    blockingEdges.clear();
+
+    // Iterate over all polygons in the scene
+    for (const auto& polygon : scene.polygons) {
+        checkPolygon(polygon, sector, anglePtSet, blockingEdges);
+    }
+
+    // Prepare angle points for sorting (including sector edge endpoints)
+    std::vector<glm::vec2> anglePoints = {
+        sector.fovEdges[0].end,
+        anglePtSet.begin(), anglePtSet.end(),
+        sector.fovEdges[1].end
+    };
+
+    // Sort the angle points in counter-clockwise order
+    sortAngularPoints(anglePoints, sector.centre);
+
+    // Create rays from the angle points
+    std::vector<glm::vec2> rays = makeRays(sector, anglePoints);
+
+    // Shoot rays and collect the result
+    RayShootingResult result = shootRays(rays, blockingEdges, sector.centre, sector.radius);
+
+    // Store the result in the fov
+    fov.anglePoints = anglePoints;
+    fov.rays = rays;
+    fov.hitPoints = result.hitPoints;
+    fov.ctrlPoints = result.ctrlPoints;
+
+    // Determine if the target is visible based on blocking edges
+    observer.colour = isSubjectVisible(blockingEdges, sector, observer) ? targetSeenColour : targetColour;
+}
