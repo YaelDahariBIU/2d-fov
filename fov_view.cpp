@@ -486,3 +486,40 @@ RayShootingResult shootRays(const std::vector<glm::vec2>& rays, const std::vecto
 }
 
 // end of part 5 (line 818)
+
+bool isSubjectVisible(const std::vector<Edge>& blockingEdges, const Sector& sector, const Observer& observer) {
+
+    // Patch I've added to the original code
+    std::vector<glm::vec2> fovEdges;
+    for (const auto& fovEdge : sector.fovEdges) {
+        fovEdges.push_back(fovEdge.vector);
+    }
+    // End of patch
+
+    // Check if the target is within the sector using the isPointInSector function
+    if (isPointInSector(observer.loc, sector.centre, sector.midDir, sector.radius_2, fovEdges) == PointInSector::Within) {
+        glm::vec2 rayVec = observer.loc - sector.centre;
+        
+        // Loop through blocking edges to check for intersections
+        for (const auto& edge : blockingEdges) {
+            // Perform line segment intersection check with the ray from the sector's center
+            LineSegmentResult res = lineSegLineSegXsect(sector.centre, rayVec, edge.start, edge.vector, true /* shouldComputePoint */);
+
+            // Check if the ray intersects with the edge
+            if (res.config == LineSegConfig::Intersect) {
+                // If the intersection point is within the sector's radius, the subject is not visible
+                if (glm::length2(res.point - sector.centre) > epsilon) {
+                    return false;
+                }
+            }
+        }
+
+        // If no intersection was found, the subject is visible
+        return true;
+    }
+
+    // If the target is not within the sector, it's not visible
+    return false;
+}
+
+// end of part 6 (line 833)
